@@ -39,11 +39,11 @@ def main():
       smin = cv2.getTrackbarPos('Saturation low','Trackbars')
       smax = cv2.getTrackbarPos('Saturation high','Trackbars')
       vmin = cv2.getTrackbarPos('Value low','Trackbars')
-      vmax = cv2.getTrackbarPos('Value max','Trackbars')
+      vmax = cv2.getTrackbarPos('Value high','Trackbars')
       lower_blue = np.array([hmin,smin,vmin])
-      #upper_blue = np.array([hmax,smax,vmax])
+      upper_blue = np.array([hmax,smax,vmax])
       #lower_blue = np.array([hmin, 0, 0])
-      upper_blue = np.array([hmax, smax, 255])
+      #upper_blue = np.array([hmax, smax, 255])
       
       # Threshold the HSV image to get only blue colors
       mask = cv2.inRange(hsv, lower_blue, upper_blue)
