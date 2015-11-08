@@ -16,6 +16,7 @@ def main(robotIP, PORT=9559):
     
     motionProxy = ALProxy("ALMotion", robotIP, PORT)
     postureProxy = ALProxy("ALRobotPosture", robotIP, PORT)
+    trackerProxy = ALProxy("ALTracker", robotIP, PORT)
     
     camProxy = ALProxy("ALVideoDevice", robotIP, PORT)
     resolution = 2    # VGA
@@ -32,35 +33,11 @@ def main(robotIP, PORT=9559):
     motionProxy.moveInit()
     
     # Move Head to the left
-    motionProxy.setAngles("HeadYaw", -math.pi/4.0, 0.6)
+    #motionProxy.setAngles("HeadYaw", -math.pi/4.0, 0.6)
+    trackerProxy.lookAt([-5, 5, 1], 1, 0.2, False)
     
     time.sleep(1)
-    
-    t0 = time.time()
-    
-    # Get a camera image.
-    # image[6] contains the image data passed as an array of ASCII chars.
-    naoImage = camProxy.getImageRemote(videoClient)
 
-    t1 = time.time()
-
-    # Time the image transfer.
-    print "acquisition delay ", t1 - t0
-
-    #camProxy.unsubscribe(videoClient)
-    
-    # Get the image size and pixel array.
-    imageWidth = naoImage[0]
-    imageHeight = naoImage[1]
-    array = naoImage[6]
-    
-    # Create a PIL Image from our pixel array.
-    im = Image.fromstring("RGB", (imageWidth, imageHeight), array)
-    
-    # Save the image.
-    im.save("./Images/camBefore.png", "PNG")
-    
-    im.show()
     
     # Get position of the head to set it fixed
     names         = "HeadYaw"
@@ -99,40 +76,16 @@ def main(robotIP, PORT=9559):
 
     X         = 0
     Y         = 0
-    Theta     = math.pi/4.0
+    Theta     = -math.pi/4.0
 
     motionProxy.moveTo(X, Y, Theta)
     
     # Rotate the head the displacement of the body
-    motionProxy.setAngles("HeadYaw", -math.pi/2.0, 0.6)
+    #motionProxy.setAngles("HeadYaw", -math.pi/2.0, 0.6)
+    trackerProxy.lookAt([-5, 5, 1], 1, 0.2, False)
     
     time.sleep(1)
     
-    t0 = time.time()
-    
-    # Get a camera image.
-    # image[6] contains the image data passed as an array of ASCII chars.
-    naoImage = camProxy.getImageRemote(videoClient)
-
-    t1 = time.time()
-
-    # Time the image transfer.
-    print "acquisition delay ", t1 - t0
-    
-    # Get the image size and pixel array.
-    imageWidth = naoImage[0]
-    imageHeight = naoImage[1]
-    array = naoImage[6]
-    
-    # Create a PIL Image from our pixel array.
-    im = Image.fromstring("RGB", (imageWidth, imageHeight), array)
-    
-    # Save the image.
-    im.save("./Images/camAfter.png", "PNG")
-    
-    im.show()
-    
-    time.sleep(0.5)
     
     # stop move on the next double support
     motionProxy.stopMove()
@@ -142,5 +95,6 @@ def main(robotIP, PORT=9559):
     
 if __name__ == "__main__":
     robotIP = "192.168.1.107"
+    #robotIP = "10.1.42.50"
     
     main(robotIP)
