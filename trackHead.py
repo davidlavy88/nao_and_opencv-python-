@@ -26,7 +26,9 @@ def move_body():
 
 def move_both():
 	per.start(True)
-	qi.async(move_body)
+	take_picture_per.start(True)
+	move_body()
+	per.stop()
 
 def  main(robotIP, PORT=9559):
 	motion.wakeUp()
