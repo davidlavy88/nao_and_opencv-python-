@@ -34,10 +34,10 @@ def CenterOfMass(image):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     img2 = image[:, :, ::-1].copy()
 
-    lowera = np.array([160,100,0])
-    uppera = np.array([180,250,255])
-    lowerb = np.array([0,100,0])
-    upperb = np.array([5,250,255])
+    lowera = np.array([160, 100, 0])
+    uppera = np.array([180, 250, 255])
+    lowerb = np.array([0, 100, 0])  # It was 100 instead of 195
+    upperb = np.array([5, 250, 255])
 
     mask1 = cv2.inRange(hsv, lowera, uppera)
     mask2 = cv2.inRange(hsv, lowerb, upperb)
@@ -92,7 +92,7 @@ def take_pics(angleScan):
     useSensors    = False
     videoClient = video.subscribe("python_client", resolution, colorSpace, 5)
     motionAngles = []
-    while t <= 2:
+    while t <= 4:
         print 'getting image ' + str(n)
         commandAngles = motion.getAngles(names, useSensors)
         motionAngles.append(commandAngles)
@@ -116,7 +116,7 @@ def take_pics(angleScan):
         print str(commandAngles)
         print ""
         n = n + 1
-        time.sleep(0.4)
+        time.sleep(0.1)
     return motionAngles
 
 def scan_area():
@@ -135,8 +135,8 @@ def scan_area():
 
 def analyze_img():
     CM = []
-    for i in range(1, 4):
-        img = cv2.imread("camImage" + str(i-1) + ".png")
+    for i in range(0, 5):
+        img = cv2.imread("camImage" + str(i) + ".png")
         cm = CenterOfMass(img)
         CM.append(cm)
     return CM
@@ -145,10 +145,12 @@ def analyze_img():
     # phi = rot_angles[2] - rot_angles[1]
     # d = centers[2] - centers[1]
 def rotate_center_head(centers, rot_angles):
-    t_ang = (320 - centers[1][1]) * 0.00592
-    ang = rot_angles[1][0] + t_ang
+    #t_ang = (320 - centers[1][1]) * 0.00592
+    ang = rot_angles[1][0] - (320 - centers[1][1])*(rot_angles[2][0]-rot_angles[1][0])/(centers[1][1]-centers[2][1])
+    # theta = (320 - centers[1][1])*(rot_angles[2][0]-rot_angles[1][0])/(centers[1][1]-centers[2][1])
+    # ang = rot_angles[2][0] - theta
     ang = ang.item()
-    print type(ang)
+    print ang
     motion.angleInterpolationWithSpeed( "Head", [ang, 0.035 ], 0.1 );
 
 def set_head_position(_angle):
@@ -164,7 +166,7 @@ def  main(robotIP, PORT=9559):
     [CC, AA] = scan_area()
     print CC
     print AA
-    for i in range(3):
+    for i in range(0, 5):
         img = cv2.imread("camImage" + str(i) + ".png")
         if CC[i][0] != 0:
             cv2.circle(img,(CC[i][1], CC[i][0]), 2, (0, 255, 0), 3)
@@ -174,8 +176,8 @@ def  main(robotIP, PORT=9559):
         else:
             print "No Ball, bitch"
 
-    rotate_center_head(CC,AA)
-    pic()
+    # rotate_center_head(CC,AA)
+    # pic()
     motion.rest()
     # print commandAngles
 

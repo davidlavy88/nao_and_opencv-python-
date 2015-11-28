@@ -30,6 +30,7 @@ def scan_area():
 	videoClient = video.subscribe("python_client", resolution, colorSpace, 5)
 	# Move neck to extreme right
 	initAngle = -math.pi/2
+	maxAngle = math.pi/2
 	rotationAngle = math.pi/6
 	motion.setAngles("HeadYaw", initAngle, 0.6)
 	time.sleep(0.8)
@@ -40,7 +41,9 @@ def scan_area():
 	s = "camImage"
 	ext = ".png"
 	n = 1
-	while t < testTime:
+	angle = initAngle
+	#while t < testTime:
+	while 
 		naoImage = video.getImageRemote(videoClient)
 		# Get the image size and pixel array.
 	  	imageWidth = naoImage[0]
@@ -52,7 +55,7 @@ def scan_area():
 		img = np.array(im) 
 	  	# Convert RGB to BGR 
 	  	img = img[:, :, ::-1].copy()
-	  	initAngle = initAngle + rotationAngle
+	  	angle = angle + rotationAngle
 	  	motion.setAngles("HeadYaw", initAngle, 0.6)
 	  	t = t + dt
 	  	n = n + 1
