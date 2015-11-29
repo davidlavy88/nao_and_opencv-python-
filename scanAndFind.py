@@ -13,8 +13,8 @@ import numpy as np
 import cv2
 
 # robotIP = "10.70.122.58"
-robotIP = "169.254.252.60"
-# robotIP = "192.168.1.107"
+# robotIP = "169.254.252.60"
+robotIP = "192.168.1.107"
 ses = qi.Session()
 ses.connect(robotIP)
 per = qi.PeriodicTask()
@@ -42,9 +42,9 @@ def CenterOfMass(image):
     mask1 = cv2.inRange(hsv, lowera, uppera)
     mask2 = cv2.inRange(hsv, lowerb, upperb)
 
-    mask = cv2.add(mask1,mask2)
+    mask = cv2.add(mask1, mask2)
 
-    kernel = np.ones((5,5),np.uint8)
+    kernel = np.ones((5, 5),np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
@@ -66,11 +66,13 @@ def CenterOfMass(image):
 
     return CM
 
+
 def move_head(angleScan):
     print 'moving head'
     angleLists = [[0, angleScan]]
     timeLists = [[1.0, 2.0]]
     motion.angleInterpolation("HeadYaw", angleLists, timeLists, True)
+
 
 def pic():
     videoClient = video.subscribe("python_client", resolution, colorSpace, 5)    
@@ -81,6 +83,7 @@ def pic():
     array = naoImage[6]
     im = Image.fromstring("RGB", (imageWidth, imageHeight), str(array))
     im.save("ball.png","PNG")
+
 
 def take_pics(angleScan):
     t = 0
@@ -119,9 +122,9 @@ def take_pics(angleScan):
         time.sleep(0.1)
     return motionAngles
 
+
 def scan_area():
-    motion.angleInterpolationWithSpeed( "Head", [-maxAngleScan, 0.035 ], 0.1 );
-    
+    motion.angleInterpolationWithSpeed("Head", [-maxAngleScan, 0.035], 0.1)
     partial_callback2 = partial(take_pics, maxAngleScan)
     partial_callback = partial(move_head, maxAngleScan)
     fut = qi.async(partial_callback)
@@ -133,6 +136,7 @@ def scan_area():
     # centers = [0, 0]
     return [centers, fut2.value()]
 
+
 def analyze_img():
     CM = []
     for i in range(0, 5):
@@ -141,11 +145,9 @@ def analyze_img():
         CM.append(cm)
     return CM
 
-# def get_centered_angle(centers, rot_angles):
-    # phi = rot_angles[2] - rot_angles[1]
-    # d = centers[2] - centers[1]
+
 def rotate_center_head(centers, rot_angles):
-    #t_ang = (320 - centers[1][1]) * 0.00592
+    # t_ang = (320 - centers[1][1]) * 0.00592
     ang = rot_angles[1][0] - (320 - centers[1][1])*(rot_angles[2][0]-rot_angles[1][0])/(centers[1][1]-centers[2][1])
     # theta = (320 - centers[1][1])*(rot_angles[2][0]-rot_angles[1][0])/(centers[1][1]-centers[2][1])
     # ang = rot_angles[2][0] - theta
