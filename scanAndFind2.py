@@ -14,9 +14,9 @@ import numpy as np
 import cv2
 
 # robotIP = "10.70.122.58"
-# robotIP = "169.254.252.60"
+robotIP = "169.254.252.60"
 # robotIP = "192.168.1.107"
-robotIP = "192.168.1.122"
+# robotIP = "192.168.1.122"
 ses = qi.Session()
 ses.connect(robotIP)
 per = qi.PeriodicTask()
@@ -36,18 +36,24 @@ def analyze_img():
     CM = []
     for i in range(0, 5):
         img = cv2.imread("camImage" + str(i) + ".png")
-        cm = CenterOfMass(img)
+        cm = CenterOfMass(img, 0)
         CM.append(cm)
     return CM
 
-def CenterOfMass(image):
+def CenterOfMass(image, CameraIndex):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     img2 = image[:, :, ::-1].copy()
 
-    lowera = np.array([160, 100, 0])
-    uppera = np.array([180, 250, 255])
-    lowerb = np.array([0, 100, 0])  # It was 100 instead of 195
-    upperb = np.array([5, 250, 255])
+    if CameraIndex == 0:
+        lowera = np.array([160, 165, 0])
+        uppera = np.array([180, 250, 255])
+        lowerb = np.array([0, 165, 0])  # It was 100 instead of 195
+        upperb = np.array([5, 250, 255])
+    elif CameraIndex == 1:
+        lowera = np.array([160, 95, 0])
+        uppera = np.array([180, 250, 255])
+        lowerb = np.array([0, 95, 0])  # It was 100 instead of 195
+        upperb = np.array([10, 250, 255])
 
     mask1 = cv2.inRange(hsv, lowera, uppera)
     mask2 = cv2.inRange(hsv, lowerb, upperb)
@@ -94,26 +100,29 @@ def pic(_name, CameraIndex):
     # videoClient = video.subscribe("python_client", resolution, colorSpace, 5)
     videoClient = video.subscribeCamera("python_client", CameraIndex, resolution, colorSpace, 5)
     naoImage = video.getImageRemote(videoClient)
+    video.unsubscribe(videoClient)
     # Get the image size and pixel array.
     imageWidth = naoImage[0]
     imageHeight = naoImage[1]
     array = naoImage[6]
     im = Image.fromstring("RGB", (imageWidth, imageHeight), str(array))
-    im.save(_name,"PNG")
+    im.save(_name, "PNG")
 
 def rotate_center_head(centers, rot_angles):
     index=numBalls(centers)
     adj = 60
     if len(index)==0:
         string="I don't see the ball."
-        ang=0
-        state=0
+        ang = 0
+        state = 0
+        RF = 0
     elif len(index)==1:
         a=index[0]
         string="I need to get a better look at the ball."
         ang=rot_angles[a][0]
-        ang = ang.item()
+        # ang = ang.item()
         state=1
+        RF = 0
     else:
         string="I see the ball."
         a=index[0]
@@ -148,11 +157,11 @@ def set_head_position(_angle):
     motion.setAngles(names, _angle, fracSpeed)
 
 
-def show_CM(_name):
+def show_CM(_name, CameraIndex):
     img = cv2.imread(_name)
-    CM = CenterOfMass(img)
+    CM = CenterOfMass(img, CameraIndex)
     # print CM
-    cv2.circle(img, (CM[1], CM[0]), 2, (0, 255, 0), 3)
+    # cv2.circle(img, (CM[1], CM[0]), 2, (0, 255, 0), 3)
     # cv2.imshow('detected ball', img)
     # cv2.imshow(_name, img)
     # cv2.waitKey(0)
@@ -222,14 +231,14 @@ def main(robotIP, PORT=9559):
 ##        cv2.destroyAllWindows()
 #########################################
         [ang,X,delta] = rotate_center_head(CC,AA)
-        #if X==1:
-        #   turn ang degrees
-        #   X=0
-        #elif X==0:
-        #   turn 80 degrees
+        if X==1: # turn to angle of pic with ball and scan
+           motion.moveTo(0, 0, ang)
+           X=0
+        elif X==0: # didn't see a ball, rotate 80 degrees and scan
+           motion.moveTo(0, 0, 80 * math.pi/180)
     
     pic("ball.png",0)
-    cm = show_CM("ball.png")
+    cm = show_CM("ball.png", 0)
     print cm
 
     per.setUsPeriod(500000)
@@ -238,7 +247,7 @@ def main(robotIP, PORT=9559):
     motion.moveTo(0, 0, ang*7/6)
     per.stop()
     pic("ball_upfront.png",0)
-    cm = show_CM("ball_upfront.png")
+    cm = show_CM("ball_upfront.png", 0)
     print cm
 
     idx = 1
@@ -249,7 +258,7 @@ def main(robotIP, PORT=9559):
         motion.moveTo(0.2, 0, 0)
         im_num = pp+str(idx)+ext
         pic(im_num,0)
-        cm = show_CM(im_num)
+        cm = show_CM(im_num, 0)
         print cm
         alpha = (cm[1] - 320) * delta
         alpha = alpha.item()
@@ -275,7 +284,7 @@ def main(robotIP, PORT=9559):
     video.startCamera(1)
     video.setActiveCamera(1)
     pic("bottom.png",1)
-    cm = show_CM("bottom.png")
+    cm = show_CM("bottom.png", 1)
     print cm
     alpha = (cm[1] - 320) * delta
     alpha = alpha.item()
@@ -290,8 +299,8 @@ def main(robotIP, PORT=9559):
         ext = ".png"
         motion.moveTo(0.2, 0, 0)
         im_num = pp+str(idx)+ext
-        pic(im_num,1)
-        cm = show_CM(im_num)
+        pic(im_num, 1)
+        cm = show_CM(im_num, 1)
         print cm
         alpha = (cm[1] - 320) * delta
         alpha = alpha.item()
@@ -300,14 +309,15 @@ def main(robotIP, PORT=9559):
         zero_head()
         motion.moveTo(0, 0, alpha*7/6)
         idx = idx + 1
+        print cm
     motion.moveTo(0.15, 0, 0)
     im_num = pp+str(idx)+ext
     print "I'm here"
     tts.say("Almost there!")
     pic(im_num,1)
-    cm = show_CM(im_num)
+    cm = show_CM(im_num, 1)
     print cm
-    tts.say("I'm in front of the fucking ball")
+    tts.say("I'm in front of the ball")
 
 
     # motion.moveTo(0.2, 0, 0)
