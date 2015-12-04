@@ -46,9 +46,13 @@ def showNaoImage(IP, PORT):
   imageHeight = naoImage[1]
   numLayers = naoImage[2]
   array = naoImage[6]
+  print "Type is", type(array)
 
+  vec_im = []
   # Create a PIL Image from our pixel array.
   im = Image.fromstring("RGB", (imageWidth, imageHeight), array)
+  print "Type of image is", type(im)
+  vec_im.append(im)
   #nparr = np.fromstring(array, np.uint8).reshape( imageHeight, imageWidth, numLayers)
   #img_np = cv2.imdecode(nparr, cv2.CV_LOAD_IMAGE_COLOR)
 
@@ -56,7 +60,7 @@ def showNaoImage(IP, PORT):
 
   #print type(img_np)
   # Save the image.
-  im.save("camImage2.png", "PNG")
+  im.save("garbage.png", "PNG")
 
   im.show()
 

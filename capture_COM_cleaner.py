@@ -90,11 +90,12 @@ if __name__ == '__main__':
   #PORT = 9559
   #
   # Read IP address from first argument if any.
-  #if len(sys.argv) > 1:
-  #    IP = sys.argv[1]
+  if len(sys.argv) > 1:
+     picname = sys.argv[1]
+     picname = str(picname)
   #im=getNaoImage(IP, PORT, "test0.png")
-  img = cv2.imread("ball_upfront2.png")
-  # img = cv2.imread("monitor_photo.jpg")
+  # img = cv2.imread("ball_upfront2.png")
+  img = cv2.imread(picname)
   CM=CenterOfMass(img)
   print CM
  

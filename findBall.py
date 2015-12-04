@@ -1,15 +1,13 @@
 import qi
-import naoqi
 import argparse
 import time
-import random
 import math
 from functools import partial
+import numpy as np
 
 # Python Image Library
 import Image
-
-import numpy as np
+# OpenCV Libraries
 import cv2
 
 # robotIP = "10.70.122.58"
@@ -19,7 +17,6 @@ robotIP = "192.168.1.122"
 ses = qi.Session()
 ses.connect(robotIP)
 per = qi.PeriodicTask()
-scan = qi.PeriodicTask()
 motion = ses.service('ALMotion')
 posture = ses.service('ALRobotPosture')
 tracker = ses.service('ALTracker')
@@ -28,20 +25,61 @@ tts = ses.service('ALTextToSpeech')
 
 resolution = 2    # VGA
 colorSpace = 11   # RGB
-maxAngleScan = math.pi * 2 / 9
 
-# motionAngles = []
-def analyze_img():
-    CM = []
-    for i in range(0, 5):
-        img = cv2.imread("camImage" + str(i) + ".png")
-        cm = CenterOfMass(img, 0)
-        CM.append(cm)
-    return CM
 
+# During the initial scan, take a few pictures to analize where's the ball
+def take_pics(angleScan):
+    t = 0
+    dt = 1
+    s = "camImage"
+    ext = ".png"
+    n = 0
+    names = "HeadYaw"
+    useSensors = False
+    videoClient = video.subscribe("python_client", resolution, colorSpace, 5)
+    motionAngles = []
+    arrayIm = []
+    while t <= 4:
+        print 'getting image ' + str(n)
+        commandAngles = motion.getAngles(names, useSensors)
+        motionAngles.append(commandAngles)
+        naoImage = video.getImageRemote(videoClient)
+        # Get the image size and pixel array.
+        imageWidth = naoImage[0]
+        imageHeight = naoImage[1]
+        array = naoImage[6]
+        im = Image.fromstring("RGB", (imageWidth, imageHeight), str(array))
+        arrayIm.append(im)
+        ##############################
+        ''' This part will be deleted and we just need to return a array of all
+        the ims in the output '''
+        name = s+str(n)+ext
+        im.save(name, "PNG")
+        print 'saved image ' + str(n)
+        #############################
+        t = t + dt
+        print "Command angles:"
+        print str(commandAngles)
+        print ""
+        n = n + 1
+        time.sleep(0.1)
+    video.unsubscribe(videoClient)
+    # return motionAngles, arrayIm
+    return motionAngles
+
+
+# Move HeadYaw from [-angleScan;angleScan]
+def move_head(angleScan):
+    print 'moving head'
+    angleLists = [[0, angleScan]]
+    timeLists = [[1.0, 2.0]]
+    motion.angleInterpolation("HeadYaw", angleLists, timeLists, True)
+
+
+# Calculate CoM of the thresholded ball (center of the circle)
 def CenterOfMass(image, CameraIndex):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    img2 = image[:, :, ::-1].copy()
+    # img2 = image[:, :, ::-1].copy()
 
     if CameraIndex == 0:
         lowera = np.array([160, 165, 0])
@@ -57,41 +95,149 @@ def CenterOfMass(image, CameraIndex):
     mask1 = cv2.inRange(hsv, lowera, uppera)
     mask2 = cv2.inRange(hsv, lowerb, upperb)
 
-    mask = cv2.add(mask1,mask2)
+    mask = cv2.add(mask1, mask2)
 
-    kernel = np.ones((5,5),np.uint8)
+    kernel = np.ones((5, 5), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
-    mj=sum(mask)
-    mi=sum(np.transpose(mask))
-    A=mask.shape
-    ni=np.array(range(A[0]))
-    nj=np.array(range(A[1]))
-    M=sum(sum(mask))
-    if sum(mi)==0 or sum(mj)==0:
+    mj = sum(mask)
+    mi = sum(np.transpose(mask))
+    A = mask.shape
+    ni = np.array(range(A[0]))
+    nj = np.array(range(A[1]))
+    # M = sum(sum(mask))
+    if sum(mi) == 0 or sum(mj) == 0:
         print "no ball"
-        xcm=0
-        ycm=0
+        xcm = 0
+        ycm = 0
     else:
-        xcm=np.dot(mj,nj)/sum(mj)
-        ycm=np.dot(mi,ni)/sum(mi)
+        xcm = np.dot(mj, nj)/sum(mj)
+        ycm = np.dot(mi, ni)/sum(mi)
 
-    CM=[ycm,xcm]
-
+    CM = [ycm, xcm]
     return CM
 
-def move_head(angleScan):
-    print 'moving head'
-    angleLists = [[0, angleScan]]
-    timeLists = [[1.0, 2.0]]
-    motion.angleInterpolation("HeadYaw", angleLists, timeLists, True)
+
+# Find the center of mass of the ball
+def analyze_img():
+    CM = []
+    for i in range(0, 5):
+        img = cv2.imread("camImage" + str(i) + ".png")
+        cm = CenterOfMass(img, 0)
+        CM.append(cm)
+    return CM
+
+
+# Look if the ball is in front of the robot
+def scan_area():
+    # Search angle where angle of rotation is [-maxAngleScan;+maxAngleScan]
+    maxAngleScan = math.pi * 2 / 9
+    motion.angleInterpolationWithSpeed("Head", [-maxAngleScan, 0.035], 0.1)
+    partial_callback2 = partial(take_pics, maxAngleScan)
+    partial_callback = partial(move_head, maxAngleScan)
+    fut = qi.async(partial_callback)
+    fut2 = qi.async(partial_callback2)
+    fut.wait()
+    fut2.wait()
+    print fut2.value()
+    centers = analyze_img()
+    return [centers, fut2.value()]
+
+
+# Index of pictures that contains the ball
+def numBalls(CM):
+    """Takes in the CM list, outputs indices of frames containing balls"""
+    index = []
+    for i in range(len(CM)):
+        if CM[i] != [0, 0]:
+            index.append(i)
+    return index
+
+
+# Find the ball and center its look to it, otherwise back to 0 and rotate again
+def rotate_center_head(centers, rot_angles):
+    index = numBalls(centers)
+    adj = 60
+    if len(index) == 0:
+        string = "I don't see the ball."
+        ang = 0
+        state = 0
+        RF = 0
+    elif len(index) == 1:
+        a = index[0]
+        string = "I need to get a better look at the ball."
+        ang = rot_angles[a][0]
+        # ang = ang.item()
+        state = 1
+        RF = 0
+    else:
+        string = "I see the ball."
+        a = index[0]
+        b = index[1]
+        RF = (rot_angles[b][0] - rot_angles[a][0]) / (centers[a][1] - centers[b][1])
+        ang = rot_angles[a][0] - (320 - adj - centers[a][1])*RF
+        ang = ang.item()
+        state = 2
+    print ang
+    motion.angleInterpolationWithSpeed("Head", [ang, 0.035], 0.1)
+    tts.say(string)
+    return [ang, state, RF]
+
+def show_CM(_name, CameraIndex):
+    img = cv2.imread(_name)
+    CM = CenterOfMass(img, CameraIndex)
+    print CM
+    # cv2.circle(img, (CM[1], CM[0]), 2, (0, 255, 0), 3)
+    # cv2.imshow('detected ball', img)
+    # cv2.imshow(_name, img)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    return CM
+
+
+# Will take 1 picture (and return it)
+# def pic(CameraIndex):
+def pic(_name, CameraIndex):
+    # videoClient = video.subscribe("python_client", resolution, colorSpace, 5)  # Old code
+    videoClient = video.subscribeCamera("python_client", CameraIndex, resolution, colorSpace, 5)
+    naoImage = video.getImageRemote(videoClient)
+    video.unsubscribe(videoClient)
+    # Get the image size and pixel array.
+    imageWidth = naoImage[0]
+    imageHeight = naoImage[1]
+    array = naoImage[6]
+    im = Image.fromstring("RGB", (imageWidth, imageHeight), str(array))
+    im.save(_name, "PNG")  # Line marked for deletion
+    # return im
+
+
+# Funtion that will look for position of the ball and return it
+def initial_scan():
+    # Get ready to move
+    motion.moveInit()
+    X = 0
+    while X == 0:
+        [CC, AA] = scan_area()
+        [ang, X, delta] = rotate_center_head(CC, AA)
+        if X == 1:  # turn to angle of pic with ball and scan
+            motion.moveTo(0, 0, ang)
+            X = 0
+        elif X == 0:  # didn't see a ball, rotate 80 degrees and scan
+            motion.moveTo(0, 0, 80 * math.pi/180)
+    pic("ball.png", 0)
+    ballPos = show_CM("ball.png", 0)
+    # print ballPos
+    return ballPos
+
+
+
 
 def numBalls(CM):
     """Takes in the CM list, outputs indices of frames containing balls"""
-    index=[]
+    index = []
     for i in range(len(CM)):
-        if CM[i]!=[0,0]:
+        if CM[i] != [0, 0]:
             index.append(i)
     return index
 
@@ -136,20 +282,6 @@ def rotate_center_head(centers, rot_angles):
     return [ang,state,RF]
 
 
-def scan_area():
-    motion.angleInterpolationWithSpeed("Head", [-maxAngleScan, 0.035], 0.1)
-    partial_callback2 = partial(take_pics, maxAngleScan)
-    partial_callback = partial(move_head, maxAngleScan)
-    fut = qi.async(partial_callback)
-    fut2 = qi.async(partial_callback2)
-    fut.wait()
-    fut2.wait()
-    print fut2.value()
-    centers = analyze_img()
-    # centers = [0, 0]
-    return [centers, fut2.value()]
-
-
 def set_head_position(_angle):
     fracSpeed = 0.2
     names = ['HeadYaw']
@@ -168,52 +300,15 @@ def show_CM(_name, CameraIndex):
     return CM
 
 
-def take_pics(angleScan):
-    t = 0
-    dt = 1
-    s = "camImage"
-    ext = ".png"
-    n = 0
-    names = "HeadYaw"
-    useSensors = False
-    videoClient = video.subscribe("python_client", resolution, colorSpace, 5)
-    motionAngles = []
-    while t <= 4:
-        print 'getting image ' + str(n)
-        commandAngles = motion.getAngles(names, useSensors)
-        motionAngles.append(commandAngles)
-        naoImage = video.getImageRemote(videoClient)
-        # Get the image size and pixel array.
-        imageWidth = naoImage[0]
-        imageHeight = naoImage[1]
-        array = naoImage[6]
-        im = Image.fromstring("RGB", (imageWidth, imageHeight), str(array))
-        name = s+str(n)+ext
-        im.save(name, "PNG")
-        print 'saved image ' + str(n)
-        img = np.array(im)
-        # Convert RGB to BGR
-        img = img[:, :, ::-1].copy()
-        # angle = angle + rotationAngle
-        # motion.setAngles("HeadYaw", initAngle, 0.6)
-        t = t + dt
-        # vec = [t,t,t,t]
-        print "Command angles:"
-        print str(commandAngles)
-        print ""
-        n = n + 1
-        time.sleep(0.1)
-    return motionAngles
-
-
 def zero_head():
     motion.angleInterpolationWithSpeed("HeadYaw", 0, 0.1)
 
 
 def main(robotIP, PORT=9559):
 
+    # Wake Up the robot
     motion.wakeUp()
-    # posture.goToPosture('StandInit', 0.5)
+    # Get ready to move
     motion.moveInit()
     X = 0
     cm = []
@@ -229,14 +324,14 @@ def main(robotIP, PORT=9559):
 ##        cv2.waitKey(0)
 ##        cv2.destroyAllWindows()
 #########################################
-        [ang, X, delta] = rotate_center_head(CC, AA)
-        if X == 1:  # turn to angle of pic with ball and scan
-            motion.moveTo(0, 0, ang)
-            X = 0
-        elif X == 0:  # didn't see a ball, rotate 80 degrees and scan
-            motion.moveTo(0, 0, 80 * math.pi/180)
-
-    pic("ball.png", 0)
+        [ang,X,delta] = rotate_center_head(CC,AA)
+        if X==1: # turn to angle of pic with ball and scan
+           motion.moveTo(0, 0, ang)
+           X=0
+        elif X==0: # didn't see a ball, rotate 80 degrees and scan
+           motion.moveTo(0, 0, 80 * math.pi/180)
+    
+    pic("ball.png",0)
     cm = show_CM("ball.png", 0)
     print cm
 
