@@ -19,7 +19,7 @@ def nothing(x):
 
 
 def main():
-    frame = cv2.imread('monitor_photo2.jpg')
+    frame = cv2.imread('camImage3.png')
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     cv2.namedWindow('Trackbars', cv2.CV_WINDOW_AUTOSIZE)
     cv2.createTrackbar('Hue low', 'Trackbars', 0, 255, nothing)

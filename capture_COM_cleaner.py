@@ -51,9 +51,9 @@ def CenterOfMass(image):
  
     #100 lower range of saturation for daveed's place
     #195 lower range of saturation for travis' place
-    lowera = np.array([160,100,0])
+    lowera = np.array([160,165,0])
     uppera = np.array([180,250,255])
-    lowerb = np.array([0,100,0])
+    lowerb = np.array([0,165,0])
     upperb = np.array([5,250,255])
  
     mask1 = cv2.inRange(hsv, lowera, uppera)

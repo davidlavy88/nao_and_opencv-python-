@@ -95,9 +95,11 @@ def numBalls(CM):
             index.append(i)
     return index
 
+
 def pic(_name, CameraIndex):
     # videoClient = video.subscribe("python_client", resolution, colorSpace, 5)
-    videoClient = video.subscribeCamera("python_client", CameraIndex, resolution, colorSpace, 5)
+    videoClient = video.subscribeCamera(
+        "python_client", CameraIndex, resolution, colorSpace, 5)
     naoImage = video.getImageRemote(videoClient)
     video.unsubscribe(videoClient)
     # Get the image size and pixel array.
@@ -261,9 +263,9 @@ def main(robotIP, PORT=9559):
         print cm
         alpha = (cm[1] - 320) * delta
         alpha = alpha.item()
-        print "Angle to rotate", alpha
-        motion.angleInterpolationWithSpeed("HeadYaw", alpha, 0.1)
-        zero_head()
+        # print "Angle to rotate", alpha
+        # motion.angleInterpolationWithSpeed("HeadYaw", alpha, 0.1)
+        # zero_head()
         motion.moveTo(0, 0, alpha*7/6)
         idx = idx + 1
         # cv2.destroyAllWindows()
