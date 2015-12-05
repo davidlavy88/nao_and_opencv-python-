@@ -13,9 +13,9 @@ import cv2
 
 ''' ROBOT CONFIGURATION '''
 # robotIP = "10.70.122.58"
-robotIP = "169.254.252.60"
+# robotIP = "169.254.252.60"
 # robotIP = "192.168.1.107"
-# robotIP = "192.168.1.122"
+robotIP = "192.168.1.122"
 ses = qi.Session()
 ses.connect(robotIP)
 per = qi.PeriodicTask()
@@ -24,6 +24,8 @@ posture = ses.service('ALRobotPosture')
 tracker = ses.service('ALTracker')
 video = ses.service('ALVideoDevice')
 tts = ses.service('ALTextToSpeech')
+landmark = ses.service('ALLandMarkDetection')
+memory = ses.service('ALMemory')
 
 resolution = 2    # VGA
 colorSpace = 11   # RGB
@@ -90,9 +92,13 @@ def CenterOfMass(image, CameraIndex):
         lowerb = np.array([0, 165, 0])  # It was 100 instead of 195
         upperb = np.array([5, 250, 255])
     elif CameraIndex == 1:
-        lowera = np.array([160, 95, 0])
+        # lowera = np.array([160, 95, 0])
+        # uppera = np.array([180, 250, 255])
+        # lowerb = np.array([0, 95, 0])  # It was 100 instead of 195
+        # upperb = np.array([10, 250, 255])
+        lowera = np.array([160, 165, 0])
         uppera = np.array([180, 250, 255])
-        lowerb = np.array([0, 95, 0])  # It was 100 instead of 195
+        lowerb = np.array([0, 165, 0])  # It was 100 instead of 195
         upperb = np.array([10, 250, 255])
 
     mask1 = cv2.inRange(hsv, lowera, uppera)
@@ -211,7 +217,7 @@ call CenterOfMass. show_CM is just for visualization '''
 def show_CM(_name, CameraIndex):
     img = cv2.imread(_name)
     CM = CenterOfMass(img, CameraIndex)
-    print CM
+    # print CM
     # cv2.circle(img, (CM[1], CM[0]), 2, (0, 255, 0), 3)
     # cv2.imshow('detected ball', img)
     # cv2.imshow(_name, img)
@@ -300,19 +306,19 @@ def walkUp(cm, delta):
 
 def walkDown(cm, delta):
     # Do the correction before it starts the loop
-    alpha = (cm[1] - 320) * delta
-    alpha = alpha.item()
-    motion.moveTo(0, 0, alpha*7/6)
+    # alpha = (cm[1] - 320) * delta
+    # alpha = alpha.item()
+    # motion.moveTo(0, 0, alpha*7/6)
     idx = 1
+    pp = "ball_downfront"
+    ext = ".png"
     print 'Entering lowercam loop'
     while cm[0] > 0 and cm[0] < 230:
-        pp = "ball_upfront"
-        ext = ".png"
         motion.moveTo(0.2, 0, 0)
         im_num = pp+str(idx)+ext
-        pic(im_num,0)
-        cm = show_CM(im_num, 0)
-        print cm
+        pic(im_num, 1)
+        cm = show_CM(im_num, 1)
+        print im_num, cm
         alpha = (cm[1] - 320) * delta
         alpha = alpha.item()
         motion.moveTo(0, 0, alpha*7/6)
@@ -320,9 +326,16 @@ def walkDown(cm, delta):
     # Tilt the head so it can have a better look of the ball
     anglePitch = math.pi * 20.6 / 180
     motion.angleInterpolationWithSpeed("HeadPitch", anglePitch, 0.1)
-
-
-        
+    while cm[0] >= 30  and cm[0] < 400:
+        motion.moveTo(0.2, 0, 0)
+        im_num = pp+str(idx)+ext
+        pic(im_num, 1)
+        cm = show_CM(im_num, 1)
+        print im_num, cm
+        alpha = (cm[1] - 320) * delta
+        alpha = alpha.item()
+        motion.moveTo(0, 0, alpha*8/6)
+        idx = idx + 1
 
 
 def kickBall():
@@ -412,6 +425,49 @@ def set_head_position(_angle):
 
 def zero_head():
     motion.angleInterpolationWithSpeed("HeadYaw", 0, 0.1)
+
+
+def lookForLandmark():
+    period = 500
+    landmark.subscribe('Test_mark', period, 0.0)
+    memValue = 'LandmarkDetected'
+    landmarkFound = []
+    foundFlag = []
+    for i in range(0, 10):
+        time.sleep(0.2)
+        val = memory.getData(memValue, 0)
+        print ""
+        print "\*****"
+        print ""
+        # Check whether we got a valid output: a list with two fields.
+        if(val and isinstance(val, list) and len(val) >= 2):
+            # We detected landmarks !
+            # For each mark, we can read its shape info and ID.
+            # Second Field = array of Mark_Info's.
+            markInfoArray = val[1]
+            for markInfo in markInfoArray:
+                # First Field = Shape info.
+                markShapeInfo = markInfo[0]
+                # Print Mark information.
+                angle = float(int(1000*markShapeInfo[1]))/1000
+                print 'Angle to rotate', angle
+                landmarkFound.append(angle)
+    if len(landmarkFound) == 0:
+        foundFlag = 0
+        rotAngle = 0
+    else:
+        foundFlag = 1
+        rotAngle = landmarkFound[0]
+    # Unsubscribe from the module.
+    landmark.unsubscribe("Test_mark")
+    return foundFlag, rotAngle
+
+
+def findGoal():
+    # Set head to zero position
+    motion.angleInterpolationWithSpeed(["HeadYaw", "HeadPitch"], [0, 0], 0.1)
+    # Start scan, per 30 degrees of rotation
+    
 
 
 def main(robotIP, PORT=9559):

@@ -100,6 +100,7 @@ if __name__ == '__main__':
   print CM
  
   cv2.circle(img,(CM[1],CM[0]),2,(0,255,0),3)
+  cv2.circle(img,(320,240),2,(255,0,0),3)
   cv2.imshow('detected ball',img)
   cv2.waitKey(0)
   cv2.destroyAllWindows()
