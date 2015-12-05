@@ -13,9 +13,9 @@ import numpy as np
 import cv2
 
 # robotIP = "10.70.122.58"
-# robotIP = "169.254.252.60"
+robotIP = "169.254.252.60"
 # robotIP = "192.168.1.107"
-robotIP = "192.168.1.122"
+# robotIP = "192.168.1.122"
 ses = qi.Session()
 ses.connect(robotIP)
 per = qi.PeriodicTask()

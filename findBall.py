@@ -13,9 +13,9 @@ import cv2
 
 ''' ROBOT CONFIGURATION '''
 # robotIP = "10.70.122.58"
-# robotIP = "169.254.252.60"
+robotIP = "169.254.252.60"
 # robotIP = "192.168.1.107"
-robotIP = "192.168.1.122"
+# robotIP = "192.168.1.122"
 ses = qi.Session()
 ses.connect(robotIP)
 per = qi.PeriodicTask()
@@ -79,6 +79,7 @@ def move_head(angleScan):
 
 
 # Calculate CoM of the thresholded ball (center of the circle)
+# TODO: Calculate the shape of the ball so CoM would be more accurate
 def CenterOfMass(image, CameraIndex):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     # img2 = image[:, :, ::-1].copy()
@@ -132,9 +133,9 @@ def analyze_img():
 
 
 # Look if the ball is in front of the robot
-def scan_area():
+def scan_area(_angleSearch):
     # Search angle where angle of rotation is [-maxAngleScan;+maxAngleScan]
-    maxAngleScan = math.pi * 2 / 9
+    maxAngleScan = _angleSearch
     motion.angleInterpolationWithSpeed("Head", [-maxAngleScan, 0.035], 0.1)
     partial_callback2 = partial(take_pics, maxAngleScan)
     partial_callback = partial(move_head, maxAngleScan)
@@ -222,14 +223,18 @@ def show_CM(_name, CameraIndex):
 
 # Funtion that will look for position of the ball and return it
 def initial_scan():
+    angleSearch = math.pi * 2 / 9
     # Get ready to move
     motion.moveInit()
     X = 0
     while X == 0:
-        [CC, AA] = scan_area()
+        [CC, AA] = scan_area(angleSearch)
         [ang, X, delta] = rotate_center_head(CC, AA)
         # TODO: ang should be constrained to make sure false balls
         # are not encountered
+        if ang > angleSearch:
+            X = 0
+            continue
         if X == 1:  # turn to angle of pic with ball and scan
             motion.moveTo(0, 0, ang)
             X = 0
@@ -243,15 +248,64 @@ def initial_scan():
     per.start(True)
     motion.moveTo(0, 0, ang*7/6)
     per.stop()
-    pic("ball_upfront.png",0)
+    pic("ball_upfront.png", 0)
     ballPos = show_CM("ball_upfront.png", 0)
     print ballPos
     return ballPos, delta
 
+
 def walkUp(cm, delta):
     idx = 1
-    print "Entering the loop"
-    while cm[0] < 420:
+    lowerFlag = 0
+    print "Entering uppercam loop"
+    while cm[0] < 420 and cm[0] > 0:
+        pp = "ball_upfront"
+        ext = ".png"
+        motion.moveTo(0.2, 0, 0)
+        im_num = pp+str(idx)+ext
+        pic(im_num, 0)
+        cm = show_CM(im_num, 0)
+        print cm
+        if cm[0] == 0 and cm[1] == 0:
+            # Scan the area with lower camera
+            pic('lower.png', 1)
+            cm2 = show_CM('lower.png', 1)
+            lowerFlag = 1
+            break
+        else:
+            alpha = (cm[1] - 320) * delta
+            alpha = alpha.item()
+            # print "Angle to rotate", alpha
+            # motion.angleInterpolationWithSpeed("HeadYaw", alpha, 0.1)
+            # zero_head()
+            motion.moveTo(0, 0, alpha*7/6)
+            idx = idx + 1
+            # cv2.destroyAllWindows()
+            continue
+    if lowerFlag == 1:
+        if cm2[0] == 0 and cm2[1] == 0:
+            lostFlag = 1
+            print 'I lost the ball'
+        else:
+            lostFlag = 0
+            print 'I need to switch cameras'
+    else:
+        pic('lower.png', 1)
+        cm2 = show_CM('lower.png', 1)
+        lostFlag = 0
+    print "Exiting up loop"
+    return lostFlag, cm2
+    # motion.moveTo(0.15, 0, 0)
+
+
+def walkDown(cm, delta):
+    # Do the correction before it starts the loop
+    alpha = (cm[1] - 320) * delta
+    alpha = alpha.item()
+    motion.moveTo(0, 0, alpha*7/6)
+    idx = 1
+    print 'Entering lowercam loop'
+    while cm[0] > 0 and cm[0] < 230:
         pp = "ball_upfront"
         ext = ".png"
         motion.moveTo(0.2, 0, 0)
@@ -261,17 +315,15 @@ def walkUp(cm, delta):
         print cm
         alpha = (cm[1] - 320) * delta
         alpha = alpha.item()
-        # print "Angle to rotate", alpha
-        # motion.angleInterpolationWithSpeed("HeadYaw", alpha, 0.1)
-        # zero_head()
         motion.moveTo(0, 0, alpha*7/6)
         idx = idx + 1
-        # cv2.destroyAllWindows()
-    print "Exiting up loop"
-    motion.moveTo(0.15, 0, 0)
+    # Tilt the head so it can have a better look of the ball
+    anglePitch = math.pi * 20.6 / 180
+    motion.angleInterpolationWithSpeed("HeadPitch", anglePitch, 0.1)
 
 
-# def walkDown(cm, delta):
+        
+
 
 def kickBall():
     # Activate Whole Body Balancer
@@ -358,24 +410,29 @@ def set_head_position(_angle):
     motion.setAngles(names, _angle, fracSpeed)
 
 
-
 def zero_head():
     motion.angleInterpolationWithSpeed("HeadYaw", 0, 0.1)
 
 
 def main(robotIP, PORT=9559):
-
     # Wake Up the robot
     motion.wakeUp()
     ballPosition, delta = initial_scan()
     # Walk to the ball using upper camera
-    walkUp(ballPosition, delta)
-    # Switch cameras
-    time.sleep(0.2) 
-    video.stopCamera(0)
-    video.startCamera(1)
-    video.setActiveCamera(1)
-    # Walk to the ball using lower camera
+    lost, CoM = walkUp(ballPosition, delta)
+    if lost == 1:
+        tts.say('I lost the ball, I need to re-scan the room')
+        done = 'Could not find the ball'
+        # return done
+    else:
+        # Switch cameras
+        time.sleep(0.2) 
+        video.stopCamera(0)
+        video.startCamera(1)
+        video.setActiveCamera(1)
+        # Walk to the ball using lower camera
+        walkDown(CoM, delta)
+
 
     # Kick the ball
     kickBall()
