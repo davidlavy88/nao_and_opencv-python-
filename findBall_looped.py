@@ -333,31 +333,53 @@ def pic(_name, CameraIndex):
 
 # Funtion that will look for position of the ball and return it
 def initial_scan():
-    state=0
+    state = 0
     angleSearch = 60*math.pi/180
-    X=0
-    
+    X = 0
+    camIndex = 0 # Start with upper camera
     motion.moveInit()
     
-    while X==0 and state!=3:
-        [CC, AA] = scan_area(angleSearch)
+    while X == 0 and state!=3:
+        [CC, AA] = scan_area(angleSearch, camIndex)
         print 'Centers', CC
         [ang, X, delta] = rotate_center_head(CC, AA)
         print 'Angle', ang
-        if X==0:
-            ## didn't see the ball.  Increase state, turn 120 degrees 
-            state=state+1
-            motion.moveTo(0,0,120*math.pi/180) 
-        elif abs(ang) > angleSearch + 0.0175:
-            ## error in angle calc back up and start scan over
-            motion.moveTo(-0.1,0,0)
-            X=0
-            state=0
-        elif X==1:
-            ## saw ball only in one frame, turn to that frame and start scan over
-            motion.moveTo(-0.1,0,ang+10*math.pi/180)
-            X=0
-            state=0
+        if X != 0:
+            if abs(ang) > angleSearch + 0.0175:
+                # error in angle calc back up and start scan over
+                motion.moveTo(-0.1, 0, 0)
+                X = 0
+                state = 0
+                continue
+            elif X == 1:
+                # saw ball only in one frame, turn to that frame and start scan over
+                motion.moveTo(-0.1, 0, ang + 10 * math.pi/180)
+                X = 0
+                state = 0
+                continue
+        elif X == 0:
+            if camIndex == 0:
+                camIndex = 1
+                continue
+            elif camIndex == 1:
+                state = state+1
+                motion.moveTo(0, 0, 120 * math.pi/180)
+                camIndex = 0
+                continue
+        # if X == 0:
+        #     # didn't see the ball.  Increase state, turn 120 degrees 
+        #     state = state+1
+        #     motion.moveTo(0, 0, 120 * math.pi/180)
+        # elif abs(ang) > angleSearch + 0.0175:
+        #     # error in angle calc back up and start scan over
+        #     motion.moveTo(-0.1,0,0)
+        #     X=0
+        #     state=0
+        # elif X==1:
+        #     ## saw ball only in one frame, turn to that frame and start scan over
+        #     motion.moveTo(-0.1,0,ang+10*math.pi/180)
+        #     X=0
+        #     state=0
             
 
 
@@ -365,18 +387,14 @@ def initial_scan():
         tts.say("I cannot find the ball.")
         CM=[0,0]
     else:
-##        per.setUsPeriod(500000)
-##        per.setCallback(zero_head)
-##        per.start(True)
         zero_head()
         motion.moveTo(0, 0, ang*7/6)
-##        per.stop()
         pic(path + "ball_upfront.png",0)
         img=cv2.imread(path + "ball_upfront.png")
         CM=CenterOfMassUp(img)
         tts.say("I found the ball.")
         
-    return CM, delta
+    return CM, delta, camIndex
 
 
 def walkUp(cm, delta):
@@ -422,6 +440,7 @@ def walkUp(cm, delta):
         img = cv2.imread(path + 'lower.png')
         cm2 = CenterOfMassUp(img)
         lostFlag = 0
+    motion.moveTo(0.15, 0, 0)
     print "Exiting up loop"
     return lostFlag, cm2
     # motion.moveTo(0.15, 0, 0)
@@ -647,24 +666,34 @@ def main(robotIP, PORT=9559):
     motion.wakeUp()
     taskCompleteFlag = 0
     while taskCompleteFlag == 0:
-        ballPosition, delta =  initial_scan()
+        ballPosition, delta,camIndex =  initial_scan()
         if ballPosition==[0,0]:
             tts.say('I need to move to find the ball')
             motion.moveTo(0.5,0,0)
         else:
-            lost, CoM = walkUp(ballPosition, delta)
-            if lost == 0:
+            if camIndex == 0:
+                lost, CoM = walkUp(ballPosition, delta)
+                if lost == 0:
+                    # Switch cameras
+                    time.sleep(0.2) 
+                    video.stopCamera(0)
+                    video.startCamera(1)
+                    video.setActiveCamera(1)
+                    # Walk to the ball using lower camera
+                    taskCompleteFlag, CoM1 = walkDown(CoM, delta)
+                    taskCompleteFlag = getReady(CoM1, delta)
+                else:
+                    tts.say('I lost the ball, I need to rescan.')
+                    motion.moveTo(-0.2, 0, 0)
+            else:
                 # Switch cameras
-                time.sleep(0.2) 
+                time.sleep(0.2)
                 video.stopCamera(0)
                 video.startCamera(1)
                 video.setActiveCamera(1)
                 # Walk to the ball using lower camera
                 taskCompleteFlag, CoM1 = walkDown(CoM, delta)
                 taskCompleteFlag = getReady(CoM1, delta)
-            else:
-                tts.say('I lost the ball, I need to rescan.')
-                motion.moveTo(-0.2, 0, 0)
     kickBall()
     motion.rest()
     # print commandAngles
