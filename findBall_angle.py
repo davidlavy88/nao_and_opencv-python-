@@ -15,9 +15,9 @@ import cv2.cv as cv
 ''' ROBOT CONFIGURATION '''
 # robotIP = "10.70.122.53"
 # robotIP = "169.254.252.60"
-robotIP = "169.254.194.108"
+# robotIP = "169.254.194.108"
 # robotIP = "192.168.1.107"
-# robotIP = "192.168.1.122"
+robotIP = "192.168.1.123"
 ses = qi.Session()
 ses.connect(robotIP)
 per = qi.PeriodicTask()
@@ -31,8 +31,8 @@ memory = ses.service('ALMemory')
 
 resolution = 2    # VGA
 colorSpace = 11   # RGB
-trial_number = 12
-path = 'trials/trial' + str(trial_number) + '/'
+trial_number = 0
+path = 'trials/landtrial' + str(trial_number) + '/'
 
 
 # During the initial scan, take a few pictures to analize where's the ball
@@ -607,7 +607,7 @@ def lookForLandmark():
     memValue = 'LandmarkDetected'
     landmarkFound = []
     foundFlag = []
-    for i in range(0, 10):
+    for i in range(0, 8):
         time.sleep(0.2)
         val = memory.getData(memValue, 0)
         print ""
@@ -638,16 +638,38 @@ def lookForLandmark():
 
 
 def findGoal():
-    # Set head to zero position
-    motion.angleInterpolationWithSpeed(["HeadYaw", "HeadPitch"], [0, 0], 0.1)
     # Start scan, per 30 degrees of rotation
-    
+    names = "HeadYaw"
+    useSensors = False
+    motionAngles = []
+    angleSearch = -math.pi/2
+    foundGoal = 0
+    idx = 0
+
+    while foundGoal == 0:
+        motion.angleInterpolationWithSpeed("Head", [angleSearch, 0], 0.1)
+        foundGoal, rotAngle = lookForLandmark()
+        commandAngles = motion.getAngles(names, useSensors)
+        motionAngles.append(commandAngles)
+        angleSearch = angleSearch + math.pi/6
+        pic(path + 'landmark' + str(idx) + '.png', 0)
+        idx = idx + 1
+
+    # zero_head()
+    motion.angleInterpolationWithSpeed("Head", [rotAngle + commandAngles[0], 0], 0.1)
+    pic(path + 'Flandmark.png', 0)
+    rotBody = motion.getAngles(names, useSensors)
+    print 'Rottt', rotBody[0]
+
+    return foundGoal, rotAngle, commandAngles, rotBody[0]
+
 
 
 def main(robotIP, PORT=9559):
 
     #Wake up the robot
     motion.wakeUp()
+    motion.moveInit()
     taskCompleteFlag = 0
     while taskCompleteFlag == 0:
         ballPosition, delta, camIndex = initial_scan()
@@ -677,27 +699,59 @@ def main(robotIP, PORT=9559):
             # Walk to the ball using lower camera
             taskCompleteFlag, CoM1 = walkDown(ballPosition, delta)
             taskCompleteFlag = getReady(CoM1, delta)
-    # taskCompleteFlag = 0
-    # while taskCompleteFlag == 0:
-    #     ballPosition, delta =  initial_scan()
-    #     if ballPosition==[0,0]:
-    #         tts.say('I need to move to find the ball')
-    #         motion.moveTo(0.5,0,0)
-    #     else:
-    #         lost, CoM = walkUp(ballPosition, delta)
-    #         if lost == 0:
-    #             # Switch cameras
-    #             time.sleep(0.2) 
-    #             video.stopCamera(0)
-    #             video.startCamera(1)
-    #             video.setActiveCamera(1)
-    #             # Walk to the ball using lower camera
-    #             taskCompleteFlag, CoM1 = walkDown(CoM, delta)
-    #             taskCompleteFlag = getReady(CoM1, delta)
-    #         else:
-    #             tts.say('I lost the ball, I need to rescan.')
-    #             motion.moveTo(-0.2, 0, 0)
+    # # taskCompleteFlag = 0
+    # # while taskCompleteFlag == 0:
+    # #     ballPosition, delta =  initial_scan()
+    # #     if ballPosition==[0,0]:
+    # #         tts.say('I need to move to find the ball')
+    # #         motion.moveTo(0.5,0,0)
+    # #     else:
+    # #         lost, CoM = walkUp(ballPosition, delta)
+    # #         if lost == 0:
+    # #             # Switch cameras
+    # #             time.sleep(0.2) 
+    # #             video.stopCamera(0)
+    # #             video.startCamera(1)
+    # #             video.setActiveCamera(1)
+    # #             # Walk to the ball using lower camera
+    # #             taskCompleteFlag, CoM1 = walkDown(CoM, delta)
+    # #             taskCompleteFlag = getReady(CoM1, delta)
+    # #         else:
+    # #             tts.say('I lost the ball, I need to rescan.')
+    # #             motion.moveTo(-0.2, 0, 0)
+    # kickBall()
+    motion.moveTo(-0.03, 0, 0)
+    video.stopCamera(1)
+    video.startCamera(0)
+    video.setActiveCamera(0)
+    foundGoal, rotAngle, commandAngles, rotBody = findGoal()
+    # foundGoal, rotAngle, commandAngles = findGoal()
+    print foundGoal, rotAngle, commandAngles
+
+    # ang = 4*rotBody/3
+    # d = math.sqrt(98*(1 - math.cos(ang)))
+    # y = d * math.cos(ang/2)/100
+    # x = d * math.sin(ang/2)/100
+
+    # motion.moveTo(0, 0, 7*rotBody/6)
+    zero_head()
+    # motion.moveTo(3*x/2, 3*y/2, 7*ang/6)
+    if rotBody > 0:
+        motion.moveTo(-0.07, -0.07, 0)
+        motion.moveTo(0, 0, 7*rotBody/6)
+        motion.moveTo(0, -0.07, 0)
+        pic(path + 'Pointing.png', 0)
+    elif rotBody < 0:
+        motion.moveTo(-0.07, 0.07, 0)
+        motion.moveTo(0, 0, 7*rotBody/6)
+        motion.moveTo(0, 0.07, 0)
+        pic(path + 'Pointing.png', 0)
+    else:
+        pic(path + 'Pointing.png', 0)
+    anglePitch = math.pi * 20.6 / 180
+    motion.angleInterpolationWithSpeed("HeadPitch", anglePitch, 0.1)
     kickBall()
+
     motion.rest()
     # # print commandAngles
 
