@@ -3,6 +3,7 @@
 import sys
 import time
 import cv2
+import cv2.cv as cv
 import numpy as np
  
 # Python Image Library
@@ -54,7 +55,7 @@ def CenterOfMass(image):
     lowera = np.array([160,165,0])
     uppera = np.array([180,250,255])
     lowerb = np.array([0,165,0])
-    upperb = np.array([5,250,255])
+    upperb = np.array([10,250,255])
  
     mask1 = cv2.inRange(hsv, lowera, uppera)
     mask2 = cv2.inRange(hsv, lowerb, upperb)
@@ -66,6 +67,39 @@ def CenterOfMass(image):
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
     cv2.imshow("mask",mask)
+
+####
+    # Bitwise-AND mask and original image
+    res = cv2.bitwise_and(image, image, mask=mask)
+    cimg = cv2.cvtColor(res,cv2.COLOR_BGR2GRAY)
+    circles = cv2.HoughCircles(cimg,cv.CV_HOUGH_GRADIENT,1,20,
+                            param1=90,param2=10,minRadius=0,maxRadius=70)
+
+    print circles
+    circles = np.uint16(np.around(circles))
+    print circles
+    idx = 1
+    maxx = 0
+    for i in circles[0,:]:
+          # # draw the outer circle
+          # cv2.circle(res,(i[0],i[1]),i[2],(0,255,0),2)
+          # # draw the center of the circle
+          # cv2.circle(res,(i[0],i[1]),2,(0,0,255),3)
+        print i
+        if i[2] > maxx:
+          max_r = i[2]
+          max_y = i[1]
+          max_x = i[0]
+          maxx = i[2]
+    
+    # draw the outer circle
+    cv2.circle(res,(max_x,max_y),max_r,(0,255,0),2)
+    # draw the center of the circle
+    cv2.circle(res,(max_x,max_y),2,(0,0,255),3)
+
+    cv2.imshow('detected circles',res)
+######
+
  
     mj=sum(mask)
     mi=sum(np.transpose(mask))
@@ -99,8 +133,9 @@ if __name__ == '__main__':
   CM=CenterOfMass(img)
   print CM
  
-  cv2.circle(img,(CM[1],CM[0]),2,(0,255,0),3)
-  cv2.circle(img,(320,240),2,(255,0,0),3)
+  cv2.circle(img,(CM[1],CM[0]),5,(0,255,0),3)
+  cv2.circle(img,(320,240),5,(255,0,0),3)
   cv2.imshow('detected ball',img)
   cv2.waitKey(0)
   cv2.destroyAllWindows()
+  cv2.imwrite('shifted.png',img)

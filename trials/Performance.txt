@@ -1,0 +1,9 @@
+trial3 - Success! (still needing position to kick w right foot)
+trial4 - So close! (did an extra couple of steps and kicked the ball before actually kicking it)
+trial5 - Same as 4
+trial6 - Same as 5 but detected the issue
+trial7 - Success, but with fear
+trial8 - Success, but BARELY missed the kick, by a 1cm.
+trial9 - Had an error about centers at first, second run if succeeded
+trial 11 - First test with simple rotation angles
+trial 12 - Travis improved and occlusion
